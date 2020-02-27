@@ -36,6 +36,8 @@ rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
 time_window = 10
+predict_time_interval = 100
+empty_time = 10
 print(data.head())
 
 data_x, data_y = [], []  # 训练集
@@ -49,14 +51,24 @@ for i in range(len(normalize_data) - time_step - time_window):
 
 data_x = np.array(data_x)
 data_y = np.array(data_y)
-
 data_x = data_x.reshape((-1, time_step, input_size))
 data_y = data_y.reshape((-1, output_size))
-
 train_x = data_x[:]
 train_y = data_y[:]
-test_x = data_x[-10:]
-test_y = data_y[-10:]
+
+data_test_x, data_test_y = [], []
+for i in range(len(normalize_data) - time_step):
+    x = normalize_data[i:i + time_step]
+    # 预测标准使用y真实值
+    y = normalize_data[i + time_step]
+    data_test_x.append(x)  # 将数组转化成列表
+    data_test_y.append(y)
+
+data_test_x = np.array(data_test_x)
+data_test_y = np.array(data_test_y)
+
+test_x = data_test_x[-predict_time_interval:]
+test_y = data_test_y[-predict_time_interval:]
 
 print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 
@@ -151,26 +163,29 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-model.load()
+# model.load()
 # 训练模型
-model.train()
+# model.train()
 # 储存模型
-model.save()
+# model.save()
 # 读入模型
 model.load()
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
-print(predict)
+
 
 # 画图使用
-history = train_x[-20:-10, -1, :].reshape(-1, output_size)
-val = test_x[:, -1, :].reshape(-1, output_size)
+history = data_test_y[-predict_time_interval - empty_time:-predict_time_interval, :].reshape(-1, output_size)
+val = data_test_y[-predict_time_interval:, :].reshape(-1, output_size)
 eval_seq = np.vstack((history, val))
-prev_seq = np.vstack((history, predict))
 
-dim_date = x_date[-20:]
+history_pad = 0.5 * np.ones((history.shape[0], history.shape[1]))
+prev_seq = np.vstack((history_pad, predict))
+
+dim_date = x_date[-predict_time_interval - empty_time:]
 xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
+print("xs:", len(xs))
 xs1 = [(datetime.strptime(d, '%Y-%m-%d') + timedelta(days=1)).date() for d in dim_date]
 
 for im_num in range(output_size):

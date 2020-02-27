@@ -16,15 +16,18 @@ from keras.utils import get_custom_objects
 # 导入数据
 df = pd.read_csv('result.csv')  # 读入股票数据
 df = df.fillna(-1)
+data = df.loc[:, ('medical', 'steel', 'public', 'transport', 'trade', 'computer', 'communication', 'bank')]
 
+x_date = df.loc[:, 'date']
+
+'''
 data = df.loc[:, ('agriculture', 'excavation', 'chemical', 'steel',
                   'metals', 'electronic', 'electrical', 'food', 'cloths', 'lightIndustry',
                   'medical', 'public', 'transport', 'house', 'trade', 'service',
                   'integrated', 'building', 'decorating', 'electEquipment', 'war',
                   'computer', 'media', 'communication', 'bank', 'finance', 'automobile',
                   'mechanics')]
-x_date = df.loc[:, 'date']
-
+'''
 normalize_data = data.values
 # normalize_data = (data - np.mean(data)) / np.std(data)  # 标准化
 # normalize_data = normalize_data[:, np.newaxis]  # 增加维度
@@ -33,8 +36,8 @@ normalize_data = data.values
 # 设置常量
 time_step = 40  # 时间步
 rnn_unit = 128  # hidden layer units
-input_size = 28  # 输入层维度
-output_size = 28  # 输出层维度
+input_size = 8  # 输入层维度
+output_size = 8  # 输出层维度
 time_window = 10
 print(data.head())
 
@@ -53,8 +56,8 @@ data_y = np.array(data_y)
 data_x = data_x.reshape((-1, time_step, input_size))
 data_y = data_y.reshape((-1, output_size))
 
-train_x = data_x[:]
-train_y = data_y[:]
+train_x = data_x[:-1]
+train_y = data_y[:-1]
 test_x = data_x[-10:]
 test_y = data_y[-10:]
 
@@ -126,16 +129,16 @@ class Model:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=50, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
         plt.show()
 
-    def save(self, file='D:/TensorFlow/stock_data/lstm_28.h5'):
+    def save(self, file='D:/TensorFlow/stock_data/lstm.h5'):
         self.model.save(file)
 
-    def load(self, file='D:/TensorFlow/stock_data/lstm_28.h5'):
+    def load(self, file='D:/TensorFlow/stock_data/lstm.h5'):
         self.model = load_model(file, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
@@ -151,7 +154,7 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-model.load()
+# model.load()
 # 训练模型
 model.train()
 # 储存模型
