@@ -105,6 +105,8 @@ for key, val in tickets.items():
         df.to_csv(item + '.csv')
 
 
+
+
 '''
 数据验证
 df = ts.get_k_data(code='601985', start='2000-01-01')

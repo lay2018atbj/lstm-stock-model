@@ -5,6 +5,8 @@ from datetime import datetime
 import tushare as ts
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
+import tushare as ts
+import os.path
 
 # 农林牧渔
 # 002299 圣农发展 002458 益生股份 002234 民和股份 002746 仙坛股份 600598 北大荒
@@ -104,13 +106,26 @@ tickets = {'agriculture': agriculture, 'excavation': excavation, 'chemical': che
 max_min_scaler = lambda x: (x - np.min(x)) / (np.max(x) - np.min(x))
 result = pd.DataFrame(columns=[])
 
+use_today = True
+today = datetime.today().strftime('%Y-%m-%d')
+if use_today:
+    if os.path.isfile(today + '.csv'):
+        today_df = pd.read_csv(today + '.csv', header=0, keep_default_na=True)
+    else:
+        today_df = ts.get_today_all()
+        today_df.to_csv(today + '.csv')
+    today_df = today_df.loc[:, ('code', 'trade')]
+    today_df['date'] = today
+
+print(today_df.head())
+
 for key, val in tickets.items():
     if key:
         print(tickets[key])
         col = ['date', 'close']
         dfAll = pd.DataFrame(columns=col)
         for item in tickets[key]:
-            df = pd.read_csv(item + '.csv')
+            df = pd.read_csv(item + '.csv', header=0, keep_default_na=True)
             if 'date' not in df.columns or 'close' not in df.columns:
                 print(item)
                 continue
@@ -118,21 +133,29 @@ for key, val in tickets.items():
             tickCol = ['date', item]
             data.columns = tickCol
             # 去量纲
+            if use_today:
+                ticket_today = today_df[today_df['code'].isin([item])]
+                value_today = ticket_today.values
+                if ticket_today.shape[0] == 0:
+                    print(item)
+                    quit(-1)
+                series = pd.Series({'date': today, item: value_today[0][1]})
+                data = data.append(series, ignore_index=True)
             data.loc[:, item] = (data.loc[:, item] - data.loc[:, item].min()) / (
-                        data.loc[:, item].max() - data.loc[:, item].min())
+                    data.loc[:, item].max() - data.loc[:, item].min())
             # data.loc[:, item] = data.loc[:, item] / data.loc[:, item].mean()
             if dfAll.empty:
                 dfAll = data
             else:
                 dfAll = pd.merge(dfAll, data, how='outer', on=['date'])
+            dfAll.sort_values('date', inplace=True)
         dfAll[key] = dfAll.mean(axis=1)
         if 'date' not in result.columns:
             result['date'] = dfAll['date']
-        print(dfAll.head())
         result[key] = dfAll[key]
 
-print(result.head())
 result.sort_values('date', inplace=True)
+print(result.tail())
 result.to_csv('result.csv')
 
 # data = df.loc[:, ('date', 'close')]
