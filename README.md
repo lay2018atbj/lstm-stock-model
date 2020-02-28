@@ -19,18 +19,28 @@ stock model for daily interval input
 
 ## How to Run?
 
-```shell
+### 1、git clone
 
+```shell
 git clone https://github.com/lay2018atbj/lstm-stock-model.git
-cd lstm-stock-model
+cd lstm-stock-model   
+```
+
+    ### 2、two ways
+
+```shell
 # step 1 get stock prices 
 python get_stock.py
 # step 2 feature processing
 python read_stock.py
 # step 3 model train and predict, lstm_28 for 28 tickets groups 
-python lstm_28.py     
-
+python lstm_28.py  
 ```
 
-​    
+```shell
+python stock_data_process.py
+python lstm_28_1.py  
+```
+
+
 

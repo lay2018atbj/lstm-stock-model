@@ -19,9 +19,8 @@ from config import tickets,output_path, use_today, today
 df = pd.read_csv(output_path + 'result-' + today + '.csv')  # 读入股票数据
 df = df.fillna(-1)
 
-
+data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date']
-data = df.drop(['date'], axis=1)
 normalize_data = data.values
 # normalize_data = (data - np.mean(data)) / np.std(data)  # 标准化
 # normalize_data = normalize_data[:, np.newaxis]  # 增加维度

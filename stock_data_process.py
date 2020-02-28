@@ -14,7 +14,7 @@ for key, val in tickets.items():
     df_temp = pd.DataFrame({'block': key, 'code': val})
     tickets_df_list.append(df_temp)
 tickets_df = pd.concat(tickets_df_list)
-
+tickets_df['code'] = tickets_df['code'].astype(str)
 # get the items history stock data, T+1 update
 history_data_path = output_path + 'history-' + today + '.csv'
 if not os.path.exists(history_data_path):
@@ -62,6 +62,7 @@ union_df_agg = union_df.groupby(['code'])['trade'].agg({'min': 'min', 'max':'max
 union_df = union_df.merge(union_df_agg, on='code')
 
 union_df['trade'] = (union_df['trade'] - union_df['min'])/(union_df['max'] - union_df['min'])
+union_df['code'] = union_df['code'].astype(str)
 union_df = union_df.merge(tickets_df, on='code')
 
 result_df = union_df.groupby(['block', 'date'])['trade'].mean().reset_index()
