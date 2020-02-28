@@ -1,29 +1,36 @@
 # lstm-stock-model
-lstm-stock-model
+## Overview
 
 stock model for daily interval input 
 
+## Installation Dependencies:
 
-tensorflow  1.10.0
+* tensorflow  1.10.0
 
-keras   2.0.8 
+* keras   2.0.8 
 
-numpy   1.14.3 
+* numpy   1.14.3 
 
-pandas  0.23.3
+* pandas  0.23.3
 
-tushare 1.2.21
+* tushare 1.2.21
 
+   
 
-1.get stock prices 
+## How to Run?
 
+```shell
+
+git clone https://github.com/lay2018atbj/lstm-stock-model.git
+cd lstm-stock-model
+# step 1 get stock prices 
 python get_stock.py
+# step 2 feature processing
+python read_stock.py
+# step 3 model train and predict, lstm_28 for 28 tickets groups 
+python lstm_28.py     
 
-2.feature processing
+```
 
-python read_stock.py 
-
-3.model train and predict, lstm_28 for 28 tickets groups 
-
-python lstm_28.py      
+​    
 

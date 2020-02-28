@@ -144,10 +144,10 @@ class Model:
         plt.legend()
         plt.show()
 
-    def save(self, file='D:/TensorFlow/stock_data/lstm_28.h5'):
+    def save(self, file='lstm_28.h5'):
         self.model.save(file)
 
-    def load(self, file='D:/TensorFlow/stock_data/lstm_28.h5'):
+    def load(self, file='lstm_28.h5'):
         self.model = load_model(file, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
