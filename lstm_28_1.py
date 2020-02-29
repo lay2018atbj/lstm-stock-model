@@ -16,9 +16,8 @@ from keras.utils import get_custom_objects
 from config import tickets,output_path, use_today, today
 
 # 导入数据
-df = pd.read_csv(output_path + 'result-' + today + '.csv')  # 读入股票数据
-df = df.fillna(-1)
-
+df = pd.read_csv(output_path + 'result' + '.csv')  # 读入股票数据
+df = df.fillna(0)
 data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date']
 normalize_data = data.values
@@ -159,11 +158,11 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load()
+model.load()
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save()
+model.save()
 # 读入模型
 model.load()
 # 预测
