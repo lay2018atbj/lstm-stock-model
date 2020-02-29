@@ -15,9 +15,12 @@ from keras.optimizers import SGD, RMSprop
 from keras.utils import get_custom_objects
 from config import tickets,output_path, use_today, today
 
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
+
 # 导入数据
 df = pd.read_csv(output_path + 'result-' + today + '.csv')  # 读入股票数据
-df = df.fillna(-1)
+df = df.fillna(0)
 
 data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date']
@@ -31,9 +34,9 @@ time_step = 40  # 时间步
 rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
-time_window = 10
-predict_time_interval = 100
-empty_time = 10
+time_window = 10  # 计算loss时使用未来均值的时间窗口
+predict_time_interval = 30  # 预测的时间长度
+empty_time = 10  # 预测时间绘图前补充的长度
 print(data.head())
 
 data_x, data_y = [], []  # 训练集
@@ -159,11 +162,11 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load()
+#model.load()
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save()
+model.save()
 # 读入模型
 model.load()
 # 预测

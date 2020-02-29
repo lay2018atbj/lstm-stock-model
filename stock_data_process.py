@@ -28,7 +28,7 @@ if not os.path.exists(history_data_path):
     history_df = pd.concat(history_data_list)
     history_df.to_csv(history_data_path, index = False)
 else:
-    history_df = pd.read_csv(history_data_path, keep_default_na=True)
+    history_df = pd.read_csv(history_data_path)
 
 
 
@@ -39,7 +39,7 @@ today_data_path = output_path + 'today-' + today + '.csv'
 
 if use_today:
     if os.path.exists(today_data_path):
-        today_df = pd.read_csv(today_data_path, keep_default_na=True)
+        today_df = pd.read_csv(today_data_path)
     else:
         today_df = ts.get_today_all()
         today_df['code'] = today_df['code'].astype(str)
@@ -69,4 +69,4 @@ result_df = union_df.groupby(['block', 'date'])['trade'].mean().reset_index()
 
 result_df = pd.pivot(result_df, index="date", columns="block", values="trade").reset_index()
 result_df = result_df.sort_values('date', ascending=True)
-result_df.to_csv(output_path + 'result-' + today + '.csv', index = False)
+result_df.to_csv(output_path + 'result-' + today + '.csv', index = False, na_rep=0)
