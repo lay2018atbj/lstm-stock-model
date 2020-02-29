@@ -55,7 +55,7 @@
 # 601965 中国汽研 002328 新朋股份 600933 爱柯迪 601311 骆驼股份 000338 潍柴动力
 # 机械设备
 # 002698 博时科技 002975 博杰股份  002972 科安达 603666 亿嘉和 300417 南华仪器
-from datetime import datetime
+import datetime
 
 agriculture = ['002299', '002458', '002234', '002746', '600598']
 excavation = ['002738', '603505', '601808', '000923', '601898']
@@ -99,6 +99,7 @@ output_path = out_path + '/'
 
 use_today = True
 
-today = datetime.today().strftime('%Y-%m-%d')
-
+today = datetime.datetime.today().strftime('%Y-%m-%d')
+yesterday = datetime.datetime.today() + datetime.timedelta(-1)
+yesterday = yesterday.strftime('%Y-%m-%d')
 

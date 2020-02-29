@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 from keras.models import Sequential, load_model
 from keras.layers import Dense, LSTM, Activation, BatchNormalization, Dropout, LocallyConnected1D, \
     GaussianNoise
@@ -16,9 +17,8 @@ from keras.utils import get_custom_objects
 from config import tickets,output_path, use_today, today
 
 # 导入数据
-df = pd.read_csv(output_path + 'result-' + today + '.csv')  # 读入股票数据
-df = df.fillna(-1)
-
+df = pd.read_csv(output_path + 'result' + '.csv')  # 读入股票数据
+df = df.fillna(0)
 data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date']
 normalize_data = data.values
@@ -184,15 +184,25 @@ xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
 print("xs:", len(xs))
 xs1 = [(datetime.strptime(d, '%Y-%m-%d') + timedelta(days=1)).date() for d in dim_date]
 
-for im_num in range(output_size):
-    min = im_num * 1
-    max = min + 1
-    for index in range(min, max):
-        fig, ax1 = plt.subplots(facecolor='white')
+rcParams.update({'font.size': 16, 'font.family': 'serif'})
+
+fig_num = 4
+num = int(output_size/fig_num)
+for i in range(fig_num):
+    fig = plt.figure(figsize=(20, 40))
+    for im_num in range(i*num, (i+1)*num):
+        index = im_num
+        ax1 = fig.add_subplot(num, 1, im_num - i*num + 1)
         ax1.set_ylabel(data.columns[index])
-        ax1.plot(xs, eval_seq[:, index], color='red')
+        l1 = ax1.plot(xs, eval_seq[:, index], color='red')[0]
+
         ax2 = ax1.twinx()
-        ax2.plot(xs1, prev_seq[:, index], color='green')
+        l2 = ax2.plot(xs1, prev_seq[:, index], color='green')[0]
         ax2.set_ylabel('predict')
+        fig.legend([l1, l2],['price predict', 'buy predict'], loc = 'upper right')
         plt.gcf().autofmt_xdate()
-    plt.show()
+    plt.savefig(output_path + 'predict_{}.png'.format(i))
+# plt.show()
+
+
+

@@ -26,7 +26,7 @@ git clone https://github.com/lay2018atbj/lstm-stock-model.git
 cd lstm-stock-model   
 ```
 
-    ### 2、two ways
+### 2、two ways
 
 ```shell
 # step 1 get stock prices 
