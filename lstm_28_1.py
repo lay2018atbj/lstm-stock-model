@@ -159,11 +159,11 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load()
+model.load()
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save()
+model.save()
 # 读入模型
 model.load()
 # 预测
