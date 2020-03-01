@@ -43,7 +43,6 @@ def eval(predict,df):
 
     predict_buy_df = pd.DataFrame(predict_buy, columns=['date', 'predict', 'code'])
     predict_buy_df.sort_values(['code', 'date'], ascending=True, inplace=True)
-    predict_buy_df.to_csv('temp.csv')
 
     price_df = pd.read_csv((output_path + 'history' + '.csv'), dtype={'code': str})  # 读入股票数据
     price_df = price_df.loc[:, ['date', 'code', 'high', 'low', 'close']]
