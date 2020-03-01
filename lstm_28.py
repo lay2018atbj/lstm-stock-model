@@ -40,7 +40,7 @@ rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
 time_window = 10  # 计算loss时使用未来均值的时间窗口
-predict_time_interval = 100  # 预测的时间长度
+predict_time_interval = 30  # 预测的时间长度
 empty_time = 10  # 预测时间绘图前补充的长度
 print(data.head())
 

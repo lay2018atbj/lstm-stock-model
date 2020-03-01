@@ -69,6 +69,7 @@ def eval(predict,df):
     result = pd.merge(result, tickets_df, 'inner', on='code')
     result = result.groupby("block")['profit', 'normal'].mean().reset_index()
     print(result)
+    print(result.mean())
 
     plt.plot(result['block'], result['profit'], color='b', label='predict')
     plt.plot(result['block'], result['normal'], color='r', label='normal')
