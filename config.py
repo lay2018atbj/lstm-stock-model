@@ -96,6 +96,7 @@ tickets = {'agriculture': agriculture, 'excavation': excavation, 'chemical': che
 
 out_path = 'export'
 output_path = out_path + '/'
+model_path = 'models/lstm_28.h5'
 
 use_today = True
 

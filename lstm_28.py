@@ -1,6 +1,8 @@
+# coding:utf-8
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 from keras.models import Sequential, load_model
 from keras.layers import Dense, LSTM, Activation, BatchNormalization, Dropout, LocallyConnected1D, \
     GaussianNoise
@@ -12,18 +14,20 @@ import keras.backend as K
 from keras import initializers
 from keras.optimizers import SGD, RMSprop
 from keras.utils import get_custom_objects
+from config import tickets,output_path, use_today, today, model_path
+from evaluate import eval
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 # 导入数据
-df = pd.read_csv('result.csv')  # 读入股票数据
-df = df.fillna(-1)
 
-data = df.loc[:, ('agriculture', 'excavation', 'chemical', 'steel',
-                  'metals', 'electronic', 'electrical', 'food', 'cloths', 'lightIndustry',
-                  'medical', 'public', 'transport', 'house', 'trade', 'service',
-                  'integrated', 'building', 'decorating', 'electEquipment', 'war',
-                  'computer', 'media', 'communication', 'bank', 'finance', 'automobile',
-                  'mechanics')]
-x_date = df.loc[:, 'date']
+df = pd.read_csv((output_path + 'result-' + today + '.csv'))  # 读入股票数据
+df = df.fillna(0)
+
+data = df.loc[:, list(tickets.keys())]
+x_date = df.loc[:, 'date'].values
+
+
 
 normalize_data = data.values
 # normalize_data = (data - np.mean(data)) / np.std(data)  # 标准化
@@ -35,9 +39,9 @@ time_step = 40  # 时间步
 rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
-time_window = 10
-predict_time_interval = 100
-empty_time = 10
+time_window = 10  # 计算loss时使用未来均值的时间窗口
+predict_time_interval = 100  # 预测的时间长度
+empty_time = 10  # 预测时间绘图前补充的长度
 print(data.head())
 
 data_x, data_y = [], []  # 训练集
@@ -74,14 +78,8 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 
 
 # 使用happynoom描述的网络模型
-# https://github.com/happynoom/DeepTrade_keras
 def risk_estimation(y_true, y_pred):
     return -100. * K.mean(y_true * y_pred)
-
-
-def pairwise_logit(y_true, y_pred):
-    loss_mat = K.log(1 + K.exp(K.sign(K.transpose(y_true) - y_true) * (y_pred - K.transpose(y_pred))))
-    return K.mean(K.mean(loss_mat))
 
 
 class ReLU(Layer):
@@ -104,7 +102,6 @@ class ReLU(Layer):
 
 class Model:
     # 使用happynoom描述的网络模型
-    # https://github.com/happynoom/DeepTrade_keras
     def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
@@ -138,16 +135,16 @@ class Model:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=50, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
         plt.show()
 
-    def save(self, file='lstm_28.h5'):
+    def save(self, file=model_path):
         self.model.save(file)
 
-    def load(self, file='lstm_28.h5'):
+    def load(self, file=model_path):
         self.model = load_model(file, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
@@ -163,17 +160,19 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load()
+model.load()
 # 训练模型
 # model.train()
 # 储存模型
 # model.save()
 # 读入模型
-model.load()
+# model.load()
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
 
+#评价函数
+eval(predict, df)
 
 # 画图使用
 history = data_test_y[-predict_time_interval - empty_time:-predict_time_interval, :].reshape(-1, output_size)
@@ -188,15 +187,26 @@ xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
 print("xs:", len(xs))
 xs1 = [(datetime.strptime(d, '%Y-%m-%d') + timedelta(days=1)).date() for d in dim_date]
 
-for im_num in range(output_size):
-    min = im_num * 1
-    max = min + 1
-    for index in range(min, max):
-        fig, ax1 = plt.subplots(facecolor='white')
+rcParams.update({'font.size': 16, 'font.family': 'serif'})
+
+fig_num = 7
+num = int(output_size/fig_num)
+for i in range(fig_num):
+    fig = plt.figure(figsize=(20, 40))
+    for im_num in range(i*num, (i+1)*num):
+        index = im_num
+        ax1 = fig.add_subplot(num, 1, im_num - i*num + 1)
         ax1.set_ylabel(data.columns[index])
-        ax1.plot(xs, eval_seq[:, index], color='red')
+        l1 = ax1.plot(xs, eval_seq[:, index], color='red')[0]
+
         ax2 = ax1.twinx()
-        ax2.plot(xs1, prev_seq[:, index], color='green')
+        l2 = ax2.plot(xs1, prev_seq[:, index], color='green')[0]
         ax2.set_ylabel('predict')
+        fig.legend([l1, l2],['price predict', 'buy predict'], loc = 'upper right')
         plt.gcf().autofmt_xdate()
-    plt.show()
+    plt.savefig(output_path + 'predict_{}.png'.format(i))
+    # plt.show()
+
+
+
+
