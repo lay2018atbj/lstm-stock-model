@@ -21,7 +21,7 @@ register_matplotlib_converters()
 
 # 导入数据
 
-df = pd.read_csv((output_path + 'result-' + '.csv'))  # 读入股票数据
+df = pd.read_csv((output_path + 'result' + '.csv'))  # 读入股票数据
 df = df.fillna(0)
 
 data = df.loc[:, list(tickets.keys())]

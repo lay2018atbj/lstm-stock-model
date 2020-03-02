@@ -50,7 +50,8 @@ stock_date_diff_list = list(max_date_df[max_date_df['date'] != max_date]['code']
 stock_diff_list = list(set(stock_date_diff_list + stock_hist_diff_list))
 history_data_list = [history_df]
 i = 0
-while (len(stock_diff_list) > 0):
+while (len(stock_diff_list) > 0 and i <= 3):
+    empty_result_list = []
     print('history data 第 %s 次 循环查询' % i)
     for item in stock_diff_list:
         try:
@@ -63,7 +64,7 @@ while (len(stock_diff_list) > 0):
         df = ts.get_k_data(code=item, start=start_date)
         df['code'] = df['code'].astype(str)
         if df.shape[0] == 0:
-            print(item)
+            empty_result_list.append(item)
         else:
             history_data_list.append(df)
 
@@ -74,7 +75,9 @@ while (len(stock_diff_list) > 0):
     max_date_df = history_df.groupby(['code'])['date'].max().reset_index()
     max_date = max_date_df['date'].max()
     stock_date_diff_list = list(max_date_df[max_date_df['date'] != max_date]['code'])
-    stock_diff_list = list(set(stock_date_diff_list + stock_hist_diff_list))
+    stock_diff_list = list(set(stock_date_diff_list + stock_hist_diff_list)
+                           - set(empty_result_list))
+    print(stock_diff_list)
     i = i + 1
 
 history_df = history_df.drop_duplicates()
@@ -87,13 +90,10 @@ union_df = history_df.rename(columns={'close': 'trade'})
 today_data_path = output_path + 'today' + '.csv'
 
 if use_today:
-    if os.path.exists(today_data_path):
-        today_df = pd.read_csv(today_data_path)
-    else:
-        today_df = ts.get_today_all()
-        today_df['code'] = today_df['code'].astype(str)
-        today_df['date'] = today
-        today_df.to_csv(today_data_path, index=False)
+    today_df = ts.get_today_all()
+    today_df['code'] = today_df['code'].astype(str)
+    today_df['date'] = today
+    today_df.to_csv(today_data_path, index=False)
     today_df = today_df[['date', 'trade', 'code']]
 
     # union today and history df
@@ -113,4 +113,4 @@ result_df = union_df.groupby(['block', 'date'])['trade'].mean().reset_index()
 
 result_df = pd.pivot(result_df, index="date", columns="block", values="trade").reset_index()
 result_df = result_df.sort_values('date', ascending=True)
-result_df.to_csv(output_path + 'result-' + '.csv', index=False, na_rep=0)
+result_df.to_csv(output_path + 'result' + '.csv', index=False, na_rep=0)
