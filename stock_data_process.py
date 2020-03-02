@@ -52,6 +52,7 @@ history_data_list = [history_df]
 i = 0
 while (len(stock_diff_list) > 0):
     print('history data 第 %s 次 循环查询' % i)
+    handled_list = []
     for item in stock_diff_list:
         try:
             start_date = max_date_df.loc[max_date_df['code'] == item, 'date'].values[0]
@@ -66,6 +67,7 @@ while (len(stock_diff_list) > 0):
             print(item)
         else:
             history_data_list.append(df)
+        handled_list.append(item)
 
     history_df = pd.concat(history_data_list)
     history_data_list = [history_df]
@@ -74,7 +76,7 @@ while (len(stock_diff_list) > 0):
     max_date_df = history_df.groupby(['code'])['date'].max().reset_index()
     max_date = max_date_df['date'].max()
     stock_date_diff_list = list(max_date_df[max_date_df['date'] != max_date]['code'])
-    stock_diff_list = list(set(stock_date_diff_list + stock_hist_diff_list))
+    stock_diff_list = list(set(stock_date_diff_list + stock_hist_diff_list)-set(handled_list))
     i = i + 1
 
 history_df = history_df.drop_duplicates()
@@ -87,13 +89,10 @@ union_df = history_df.rename(columns={'close': 'trade'})
 today_data_path = output_path + 'today' + '.csv'
 
 if use_today:
-    if os.path.exists(today_data_path):
-        today_df = pd.read_csv(today_data_path)
-    else:
-        today_df = ts.get_today_all()
-        today_df['code'] = today_df['code'].astype(str)
-        today_df['date'] = today
-        today_df.to_csv(today_data_path, index = False)
+    today_df = ts.get_today_all()
+    today_df['code'] = today_df['code'].astype(str)
+    today_df['date'] = today
+    today_df.to_csv(today_data_path, index = False)
     today_df = today_df[['date', 'trade', 'code']]
 
     # union today and history df
