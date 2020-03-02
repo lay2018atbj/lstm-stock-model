@@ -93,7 +93,7 @@ if use_today:
         today_df = ts.get_today_all()
         today_df['code'] = today_df['code'].astype(str)
         today_df['date'] = today
-        today_df.to_csv(today_data_path, index = False)
+        today_df.to_csv(today_data_path, index=False)
     today_df = today_df[['date', 'trade', 'code']]
 
     # union today and history df
@@ -113,5 +113,4 @@ result_df = union_df.groupby(['block', 'date'])['trade'].mean().reset_index()
 
 result_df = pd.pivot(result_df, index="date", columns="block", values="trade").reset_index()
 result_df = result_df.sort_values('date', ascending=True)
-result_df.to_csv(output_path + 'result-' + today + '.csv', index = False, na_rep=0)
-
+result_df.to_csv(output_path + 'result-' + '.csv', index=False, na_rep=0)
