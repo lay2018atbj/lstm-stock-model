@@ -99,7 +99,7 @@ tickets = {'agriculture': agriculture, 'excavation': excavation, 'chemical': che
 
 out_path = 'export'   # 数据输出目录
 output_path = out_path + '/'
-model_path = 'models/lstm_28.h5'  # 模型输出目录
+model_path = 'models/'  # 模型输出目录
 
 use_today = True  # 是否使用今日交易数据进行训练，True表示使用，如果在盘中，使用盘中实时数据
 

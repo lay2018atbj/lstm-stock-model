@@ -20,7 +20,6 @@ from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
 # 导入数据
-
 df = pd.read_csv((output_path + 'result-' + today + '.csv'))  # 读入股票数据
 df = df.fillna(0)
 
@@ -47,12 +46,14 @@ profit_type = 'weight'
 # train_type 表示训练的模式
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
-train_type = 'evaluate'
+train_type = 'all'
+# train_type = 'evaluate'
 
 data_x, data_y = [], []  # 训练集
 for i in range(len(normalize_data) - time_step - time_window):
     x = normalize_data[i:i + time_step]
     # 使用均值差作为预测标准
+    # 加入0.003的交易税率
     if profit_type == 'weight':
         y = ((0.01 + np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0)) / (0.01 + np.mean(
             normalize_data[i + time_step - time_window:i + time_step], axis=0))) - 1.003
@@ -74,6 +75,7 @@ else:
     train_x = data_x[:]
     train_y = data_y[:]
 
+# 测试集
 data_test_x, data_test_y = [], []
 for i in range(len(normalize_data) - time_step):
     x = normalize_data[i:i + time_step]
@@ -92,9 +94,9 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 
 
 # 使用happynoom描述的网络模型
+# 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
     return -100. * K.mean(y_true * y_pred)
-
 
 class ReLU(Layer):
     """Rectified Linear Unit."""
@@ -116,7 +118,7 @@ class ReLU(Layer):
 
 class Model:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.003, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -149,17 +151,17 @@ class Model:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=1000, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
         plt.show()
 
-    def save(self, file=model_path):
-        self.model.save(file)
+    def save(self, path=model_path, file='lstm_28.h5'):
+        self.model.save(path+file)
 
-    def load(self, file=model_path):
-        self.model = load_model(file, custom_objects={'risk_estimation': risk_estimation})
+    def load(self,  path=model_path, file='lstm_28.h5'):
+        self.model = load_model(path+file, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
         predict = []
@@ -174,18 +176,21 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load()
+model.load()
 # 训练模型
-model.train()
+#model.train()
 # 储存模型
-model.save()
+#if train_type == 'evaluate':
+#    model.save(file='lstm_evaluate_28.h5')
+#else:
+#    model.save()
 # 读入模型
 # model.load()
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
 
-#评价函数
+# 评价函数
 eval(predict, df)
 
 # 画图使用
@@ -196,13 +201,15 @@ eval_seq = np.vstack((history, val))
 history_pad = 0.5 * np.ones((history.shape[0], history.shape[1]))
 prev_seq = np.vstack((history_pad, predict))
 
+# 计算时间轴
 dim_date = x_date[-predict_time_interval - empty_time:]
 xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
 print("xs:", len(xs))
 xs1 = [(datetime.strptime(d, '%Y-%m-%d')).date() for d in dim_date]
 
-rcParams.update({'font.size': 16, 'font.family': 'serif'})
 
+# 绘图
+rcParams.update({'font.size': 16, 'font.family': 'serif'})
 fig_num = 7
 num = int(output_size/fig_num)
 for i in range(fig_num):

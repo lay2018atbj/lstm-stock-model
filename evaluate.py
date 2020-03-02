@@ -7,12 +7,13 @@ from config import tickets, output_path
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
-# 导入数据
+# 收益评价函数
+# 当前价值 = 股票价值 + 现金
 def pre_profit(df):
-    money = 1.
-    last_buy = -1.
-    tickets = 0.
-    price = 0.
+    money = 1.  # 初始金额
+    last_buy = -1.  # 上次是否买入
+    tickets = 0.    # 拥有股票数目
+    price = 0.      # 股票现价
     for index in df.index:
         buy = df.loc[index, 'predict']
         price = df.loc[index, 'close']
@@ -24,11 +25,15 @@ def pre_profit(df):
     money = money + tickets * price
     return money
 
+# 计算大盘正常收益
 def normal_profit(df):
     begin = df.loc[df.index[0], 'close']
     end = df.loc[df.index[-1], 'close']
     return 0. + (end/begin)
 
+# 评价函数
+# predict 预测序列
+# df 用于计算股票日期和股票分组
 def eval(predict,df):
     predict_time_interval = predict.shape[0]
     output_size = predict.shape[1]
