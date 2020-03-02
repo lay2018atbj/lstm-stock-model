@@ -1,4 +1,6 @@
 # coding:utf-8
+import datetime
+
 # 农林牧渔
 # 002299 圣农发展 002458 益生股份 002234 民和股份 002746 仙坛股份 600598 北大荒
 # 采掘
@@ -55,8 +57,8 @@
 # 601965 中国汽研 002328 新朋股份 600933 爱柯迪 601311 骆驼股份 000338 潍柴动力
 # 机械设备
 # 002698 博时科技 002975 博杰股份  002972 科安达 603666 亿嘉和 300417 南华仪器
-import datetime
 
+# 按照上述分组枚举股票代码
 agriculture = ['002299', '002458', '002234', '002746', '600598']
 excavation = ['002738', '603505', '601808', '000923', '601898']
 chemical = ['300487', '002440', '300777', '002643', '603026']
@@ -94,11 +96,12 @@ tickets = {'agriculture': agriculture, 'excavation': excavation, 'chemical': che
            'media': media, 'communication': communication, 'bank': bank,
            'finance': finance, 'automobile': automobile, 'mechanics': mechanics}
 
-out_path = 'export'
-output_path = out_path + '/'
-model_path = 'models/lstm_28.h5'
 
-use_today = True
+out_path = 'export'   # 数据输出目录
+output_path = out_path + '/'
+model_path = 'models/lstm_28.h5'  # 模型输出目录
+
+use_today = True  # 是否使用今日交易数据进行训练，True表示使用，如果在盘中，使用盘中实时数据
 
 today = datetime.datetime.today().strftime('%Y-%m-%d')
 yesterday = datetime.datetime.today() + datetime.timedelta(-1)

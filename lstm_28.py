@@ -27,29 +27,39 @@ df = df.fillna(0)
 data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date'].values
 
-
-
 normalize_data = data.values
 # normalize_data = (data - np.mean(data)) / np.std(data)  # 标准化
 # normalize_data = normalize_data[:, np.newaxis]  # 增加维度
 
 # 生成训练集
 # 设置常量
-time_step = 40  # 时间步
+time_step = 30  # 时间步
 rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
-time_window = 10  # 计算loss时使用未来均值的时间窗口
+time_window = 3  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
 empty_time = 10  # 预测时间绘图前补充的长度
-print(data.head())
+# 评价收益方式
+# profit_type = 'weight'  表示使用增值比例
+# profit_type='value'  表示使用增值数值
+profit_type = 'weight'
+# train_type 表示训练的模式
+# train_type='evaluate' 使用训练值训练
+# train_type='all' 使用全部值训练
+train_type = 'evaluate'
 
 data_x, data_y = [], []  # 训练集
 for i in range(len(normalize_data) - time_step - time_window):
     x = normalize_data[i:i + time_step]
     # 使用均值差作为预测标准
-    y = np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0) - np.mean(
-        normalize_data[i + time_step - time_window:i + time_step], axis=0)
+    if profit_type == 'weight':
+        y = ((0.01 + np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0)) / (0.01 + np.mean(
+            normalize_data[i + time_step - time_window:i + time_step], axis=0))) - 1.003
+    else:
+        y = np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0) - np.mean(
+            normalize_data[i + time_step - time_window:i + time_step], axis=0)
+
     data_x.append(x)  # 将数组转化成列表
     data_y.append(y)
 
@@ -57,8 +67,12 @@ data_x = np.array(data_x)
 data_y = np.array(data_y)
 data_x = data_x.reshape((-1, time_step, input_size))
 data_y = data_y.reshape((-1, output_size))
-train_x = data_x[:]
-train_y = data_y[:]
+if train_type == 'evaluate':
+    train_x = data_x[:-predict_time_interval]
+    train_y = data_y[:-predict_time_interval]
+else:
+    train_x = data_x[:]
+    train_y = data_y[:]
 
 data_test_x, data_test_y = [], []
 for i in range(len(normalize_data) - time_step):
@@ -135,7 +149,7 @@ class Model:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=1000, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
@@ -160,11 +174,11 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-model.load()
+# model.load()
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save()
+model.save()
 # 读入模型
 # model.load()
 # 预测
@@ -185,7 +199,7 @@ prev_seq = np.vstack((history_pad, predict))
 dim_date = x_date[-predict_time_interval - empty_time:]
 xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
 print("xs:", len(xs))
-xs1 = [(datetime.strptime(d, '%Y-%m-%d') + timedelta(days=1)).date() for d in dim_date]
+xs1 = [(datetime.strptime(d, '%Y-%m-%d')).date() for d in dim_date]
 
 rcParams.update({'font.size': 16, 'font.family': 'serif'})
 
@@ -202,10 +216,10 @@ for i in range(fig_num):
         ax2 = ax1.twinx()
         l2 = ax2.plot(xs1, prev_seq[:, index], color='green')[0]
         ax2.set_ylabel('predict')
-        fig.legend([l1, l2],['price predict', 'buy predict'], loc = 'upper right')
+        fig.legend([l1, l2], ['price predict', 'buy predict'], loc = 'upper right')
         plt.gcf().autofmt_xdate()
     plt.savefig(output_path + 'predict_{}.png'.format(i))
-    # plt.show()
+    plt.show()
 
 
 
