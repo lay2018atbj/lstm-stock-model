@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from config import tickets, output_path
+from config import tickets, output_path, today
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -71,6 +71,9 @@ def eval(predict,df):
     tickets_df['code'] = tickets_df['code'].astype(str)
 
     result = pd.merge(result, tickets_df, 'inner', on='code')
+    result.sort_values(['profit'], ascending=False, inplace=True)
+    result.to_csv(output_path + today +'eval.csv')
+    print(result)
     result = result.groupby("block")['profit', 'normal'].mean().reset_index()
     print(result)
     print(result.mean())

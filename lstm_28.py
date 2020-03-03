@@ -37,7 +37,7 @@ time_step = 30  # 时间步
 rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
-time_window = 3  # 计算loss时使用未来均值的时间窗口
+time_window = 4  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
 empty_time = 10  # 预测时间绘图前补充的长度
 # 评价收益方式
@@ -47,8 +47,8 @@ profit_type = 'weight'
 # train_type 表示训练的模式
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
-train_type = 'all'
-# train_type = 'evaluate'
+# train_type = 'all'
+train_type = 'evaluate'
 
 data_x, data_y = [], []  # 训练集
 for i in range(len(normalize_data) - time_step - time_window):
@@ -119,7 +119,7 @@ class ReLU(Layer):
 
 class Model:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.003, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -152,7 +152,7 @@ class Model:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
@@ -177,14 +177,14 @@ get_custom_objects().update({'ReLU': ReLU})
 model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-model.load()
+# model.load(file='lstm_evaluate_28.h5')
 # 训练模型
-#model.train()
+model.train()
 # 储存模型
-#if train_type == 'evaluate':
-#    model.save(file='lstm_evaluate_28.h5')
-#else:
-#    model.save()
+if train_type == 'evaluate':
+    model.save(file='lstm_evaluate_28.h5')
+else:
+    model.save()
 # 读入模型
 # model.load()
 # 预测
@@ -227,7 +227,8 @@ for i in range(fig_num):
         fig.legend([l1, l2], ['price predict', 'buy predict'], loc = 'upper right')
         plt.gcf().autofmt_xdate()
     plt.savefig(output_path + 'predict_{}.png'.format(i))
-    plt.show()
+    # plt.show()
+    plt.close()
 
 
 
