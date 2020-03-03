@@ -5,15 +5,15 @@ stock model for daily interval input
 
 ## Installation Dependencies:
 
-* tensorflow  1.10.0
+* tensorflow  1.13.1
 
-* keras   2.0.8 
+* keras   2.3.1 
 
-* numpy   1.14.3 
+* numpy   1.18.1
 
-* pandas  0.23.3
+* pandas  0.24.2
 
-* tushare 1.2.21
+* tushare 1.2.34
 
    
 
