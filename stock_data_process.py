@@ -91,7 +91,7 @@ union_df = history_df.rename(columns={'close': 'trade'})
 # get today items stock data
 today_data_path = output_path + 'today' + '.csv'
 
-if use_today:
+if not ts.is_holiday(today):
     today_df = ts.get_today_all()
     today_df['code'] = today_df['code'].astype(str)
     today_df['date'] = today

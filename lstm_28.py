@@ -215,10 +215,12 @@ fig_num = 7
 num = int(output_size/fig_num)
 for i in range(fig_num):
     fig = plt.figure(figsize=(20, 40))
+    output_name_list = []
     for im_num in range(i*num, (i+1)*num):
         index = im_num
         ax1 = fig.add_subplot(num, 1, im_num - i*num + 1)
         ax1.set_ylabel(data.columns[index])
+        output_name_list.append(data.columns[index])
         l1 = ax1.plot(xs, eval_seq[:, index], color='red')[0]
 
         ax2 = ax1.twinx()
@@ -226,9 +228,10 @@ for i in range(fig_num):
         ax2.set_ylabel('predict')
         fig.legend([l1, l2], ['price predict', 'buy predict'], loc = 'upper right')
         plt.gcf().autofmt_xdate()
-    plt.savefig(output_path + 'predict_{}.png'.format(i))
+    output_name = '_'.join(output_name_list)
+    plt.savefig(output_path + '{}.png'.format(output_name))
     # plt.show()
-    plt.close()
+
 
 
 
