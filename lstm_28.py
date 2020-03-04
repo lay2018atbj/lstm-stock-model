@@ -45,7 +45,7 @@ input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
 time_window = 3  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
-empty_time = 10  # 预测时间绘图前补充的长度
+empty_time = 0  # 预测时间绘图前补充的长度
 # 评价收益方式
 # profit_type = 'weight'  表示使用增值比例
 # profit_type='value'  表示使用增值数值
@@ -53,8 +53,8 @@ profit_type = 'weight'
 # train_type 表示训练的模式
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
-train_type = 'all'
-# train_type = 'evaluate'
+# train_type = 'all'
+train_type = 'evaluate'
 
 
 data_x, data_y = [], []  # 训练集
@@ -63,7 +63,7 @@ for i in range(len(normalize_data) - time_step - time_window):
     # 使用均值差作为预测标准
     # 加入0.003的交易税率
     if profit_type == 'weight':
-        y = ((0.01 + np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0)) / (0.01 + np.mean(
+        y = ((0.01 + np.mean(normalize_data[i + time_step:i + time_step + time_window], axis=0)) / (0.01 + np.mean(
             normalize_data[i + time_step - time_window:i + time_step], axis=0))) - 1.003
     else:
         y = np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0) - np.mean(
@@ -106,6 +106,8 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 def risk_estimation(y_true, y_pred):
     return -100. * K.mean(y_true * y_pred)
 
+
+
 class ReLU(Layer):
     """Rectified Linear Unit."""
 
@@ -125,7 +127,7 @@ class ReLU(Layer):
 
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.004, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -151,12 +153,12 @@ class SeqModel:
         self.model = Sequential()
         self.model.add(GaussianNoise(stddev=0.01, input_shape=self.input_shape))
         for i in range(0, self.n_layers - 1):
-            self.model.add(LSTM(self.n_hidden * 4, return_sequences=True, activation='tanh',
+            self.model.add(LSTM(self.n_hidden * 4, return_sequences=True, activation='softsign',
                                 recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
                                 recurrent_initializer='orthogonal', bias_initializer='zeros',
                                 dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
 
-        self.model.add(LSTM(self.n_hidden, return_sequences=False, activation='tanh',
+        self.model.add(LSTM(self.n_hidden, return_sequences=False, activation='softsign',
                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
                             recurrent_initializer='orthogonal', bias_initializer='zeros',
                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
@@ -192,32 +194,40 @@ class SeqModel:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True,
+                                 validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
         plt.show()
 
-    def save(self, path=model_path, file='lstm_28.h5'):
-        self.model.save(path+file)
+    def save(self, path=model_path, type='evaluate'):
+        if type == 'evaluate':
+            file = 'lstm_evaluate_' + timestamp + '.h5'
+        else:
+            file = 'lstm_' + timestamp + '.h5'
+        self.model.save(path + file)
 
-    def load(self,  path=model_path, type='evaluate'):
+    def load(self,  path=model_path, type='evaluate', version='lastest'):
         file_names = os.listdir(path)
         model_files = []
         eval_files = []
-        for file in file_names:
-            if re.search('eval', file) is not None:
-                eval_files.append(file)
+        if version == 'lastest':
+            for file in file_names:
+                if re.search('eval', file) is not None:
+                    eval_files.append(file)
+                else:
+                    model_files.append(file)
+            if type == 'evaluate':
+                eval_files.sort(reverse=True)
+                model_name = eval_files[0]
             else:
-                model_files.append(file)
-        if type == 'evaluate':
-            eval_files.sort(reverse=True)
-            model_name = eval_files[0]
+                model_files.sort(reverse=True)
+                model_name = model_files[0]
+            print(model_name, 'has loaded')
+            self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
         else:
-            model_files.sort(reverse=True)
-            model_name = model_files[0]
-        print(model_name, 'has loaded')
-        self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
+            self.model = load_model(path+version, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
         predict = []
@@ -232,18 +242,14 @@ model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
 timestamp = str(int(time.time()))
-# model.load()
+# model.load(type=train_type, version='lstm.h5')
+# model.load(type=train_type)
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-'''
-if train_type == 'evaluate':
-    model.save(file='lstm_evaluate_' + timestamp + '.h5')
-else:
-    model.save(file='lstm_' + timestamp + '.h5')
-'''
+model.save(type=train_type)
 # 读入模型
-model.load(type=train_type)
+# model.load(type=train_type)
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)

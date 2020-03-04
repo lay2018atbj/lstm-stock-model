@@ -42,9 +42,10 @@ def eval(predict,df):
     x_date = df.loc[:, 'date'].values
     for i in range(predict.shape[0]):
         for j in range(output_size):
-            codes = tickets[data.columns[j]]
-            new = [[x_date[-predict_time_interval + i], predict[i, j], code] for code in codes]
-            predict_buy.extend(new)
+            if j < len(list(tickets.keys())):
+                codes = tickets[data.columns[j]]
+                new = [[x_date[-predict_time_interval + i], predict[i, j], code] for code in codes]
+                predict_buy.extend(new)
 
     predict_buy_df = pd.DataFrame(predict_buy, columns=['date', 'predict', 'code'])
     predict_buy_df.sort_values(['code', 'date'], ascending=True, inplace=True)
@@ -83,9 +84,6 @@ def eval(predict,df):
     plt.legend()
     plt.xticks(rotation=-90)  # 设置x轴标签旋转角度
     plt.show()
-
-
-
 
 
 
