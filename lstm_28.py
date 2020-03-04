@@ -3,20 +3,26 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from keras.models import Sequential, load_model
+from keras.models import Sequential, load_model, Input, Model
 from keras.layers import Dense, LSTM, Activation, BatchNormalization, Dropout, LocallyConnected1D, \
     GaussianNoise
-
+from keras.layers.core import *
+from keras.layers.recurrent import LSTM
+from keras.models import *
 from datetime import datetime, timedelta
 from keras.engine import Layer
-
+import time
 import keras.backend as K
 from keras import initializers
-from keras.optimizers import SGD, RMSprop
+from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import get_custom_objects
 from config import tickets,output_path, use_today, today, model_path
 from evaluate import eval
 from pandas.plotting import register_matplotlib_converters
+from keras.layers import Dense, Lambda, dot, Activation, concatenate
+from keras.layers import Multiply
+import os
+import re
 register_matplotlib_converters()
 
 # 导入数据
@@ -37,7 +43,7 @@ time_step = 30  # 时间步
 rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
-time_window = 4  # 计算loss时使用未来均值的时间窗口
+time_window = 3  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
 empty_time = 10  # 预测时间绘图前补充的长度
 # 评价收益方式
@@ -47,8 +53,9 @@ profit_type = 'weight'
 # train_type 表示训练的模式
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
-# train_type = 'all'
-train_type = 'evaluate'
+train_type = 'all'
+# train_type = 'evaluate'
+
 
 data_x, data_y = [], []  # 训练集
 for i in range(len(normalize_data) - time_step - time_window):
@@ -116,8 +123,7 @@ class ReLU(Layer):
         base_config = super(ReLU, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-
-class Model:
+class SeqModel:
     # 使用happynoom描述的网络模型
     def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
@@ -128,6 +134,18 @@ class Model:
         self.rate_dropout = rate_dropout
         self.loss = loss
         self.model = None
+
+    def attention_3d_block(self, inputs):
+        input_dim = int(inputs.shape[2])
+        a = Permute((2, 1))(inputs)
+        a = Reshape((input_dim, time_step))(a)
+        a = Dense(time_step, activation='softmax')(a)
+        # single_attention_vector
+        # a = Lambda(lambda x: K.mean(x, axis=1), name='dim_reduction')(a)
+        # a = RepeatVector(input_dim)(a)
+        a_probs = Permute((2, 1), name='attention_vec')(a)
+        output_attention_mul = Multiply()([inputs, a_probs])
+        return output_attention_mul
 
     def lstmModel(self):
         self.model = Sequential()
@@ -150,9 +168,31 @@ class Model:
         self.model.summary()
         return self.model
 
+    def lstmAttentionModel(self):
+        K.clear_session()  # 清除之前的模型，省得压满内存
+        inputs = Input(shape=(time_step, input_size,))
+        attention_mul = self.attention_3d_block(inputs)
+        for i in range(0, self.n_layers - 1):
+            attention_mul = LSTM(self.n_hidden * 4, return_sequences=True, activation='tanh',
+                                 recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
+                                 recurrent_initializer='orthogonal', bias_initializer='zeros',
+                                 dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout)(attention_mul)
+        attention_mul = LSTM(self.n_hidden, return_sequences=False, activation='tanh',
+                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
+                             recurrent_initializer='orthogonal', bias_initializer='zeros',
+                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout)(attention_mul)
+        attention_mul = Dense(output_size, kernel_initializer=initializers.glorot_uniform())(attention_mul)
+        attention_mul = BatchNormalization(axis=-1, beta_initializer='ones')(attention_mul)
+        outputs = ReLU(alpha=0.0, max_value=1.0)(attention_mul)
+        self.model = Model(input=[inputs], output=outputs)
+        opt = RMSprop(lr=self.learning_rate)
+        self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
+        self.model.summary()
+        return self.model
+
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True)
+        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True)
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
@@ -161,8 +201,23 @@ class Model:
     def save(self, path=model_path, file='lstm_28.h5'):
         self.model.save(path+file)
 
-    def load(self,  path=model_path, file='lstm_28.h5'):
-        self.model = load_model(path+file, custom_objects={'risk_estimation': risk_estimation})
+    def load(self,  path=model_path, type='evaluate'):
+        file_names = os.listdir(path)
+        model_files = []
+        eval_files = []
+        for file in file_names:
+            if re.search('eval', file) is not None:
+                eval_files.append(file)
+            else:
+                model_files.append(file)
+        if type == 'evaluate':
+            eval_files.sort(reverse=True)
+            model_name = eval_files[0]
+        else:
+            model_files.sort(reverse=True)
+            model_name = model_files[0]
+        print(model_name, 'has loaded')
+        self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
         predict = []
@@ -172,21 +227,23 @@ class Model:
             predict.append(prev)
         return np.array(predict)
 
-
 get_custom_objects().update({'ReLU': ReLU})
-model = Model(input_shape=(time_step, input_size), loss=risk_estimation)
+model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
-# model.load(file='lstm_evaluate_28.h5')
-# 训练模型
-model.train()
-# 储存模型
-if train_type == 'evaluate':
-    model.save(file='lstm_evaluate_28.h5')
-else:
-    model.save()
-# 读入模型
+timestamp = str(int(time.time()))
 # model.load()
+# 训练模型
+# model.train()
+# 储存模型
+'''
+if train_type == 'evaluate':
+    model.save(file='lstm_evaluate_' + timestamp + '.h5')
+else:
+    model.save(file='lstm_' + timestamp + '.h5')
+'''
+# 读入模型
+model.load(type=train_type)
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
@@ -230,8 +287,7 @@ for i in range(fig_num):
         plt.gcf().autofmt_xdate()
     output_name = '_'.join(output_name_list)
     plt.savefig(output_path + '{}.png'.format(output_name))
-    # plt.show()
-
+    plt.show()
 
 
 
