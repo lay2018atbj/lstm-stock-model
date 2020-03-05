@@ -1,5 +1,6 @@
 # coding:utf-8
 import pandas as pd
+from pandas import Series
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -26,13 +27,16 @@ import re
 register_matplotlib_converters()
 
 # 导入数据
-
 df = pd.read_csv((output_path + 'percent_result' + '.csv'))  # 读入股票数据
 df = df.fillna(0)
+# 0 收益按照手续费0.01估计
+df['zeros'] = 0.01
 
-data = df.loc[:, list(tickets.keys())]
-data['zeros'] = 0.003
 x_date = df.loc[:, 'date'].values
+columns_length = len(df.columns)
+print(columns_length)
+data = df.loc[:, df.columns[1:]]
+feature_size = columns_length - 1
 
 normalize_data = data.values
 # normalize_data = (data - np.mean(data)) / np.std(data)  # 标准化
@@ -41,9 +45,9 @@ normalize_data = data.values
 # 生成训练集
 # 设置常量
 time_step = 30  # 时间步
-rnn_unit = 128  # hidden layer units
-input_size = 29  # 输入层维度
-output_size = 29  # 输出层维度
+rnn_unit = 256  # hidden layer units
+input_size = feature_size  # 输入层维度
+output_size = feature_size  # 输出层维度
 time_window = 3  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
 empty_time = 0  # 预测时间绘图前补充的长度
@@ -101,7 +105,7 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 # 使用happynoom描述的网络模型
 # 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
-    return -100. * K.sum(y_true * y_pred)
+    return -100. * K.mean(y_true * y_pred)
 
 class ReLU(Layer):
     """Rectified Linear Unit."""
@@ -122,7 +126,7 @@ class ReLU(Layer):
 
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.008, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -145,8 +149,12 @@ class SeqModel:
                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
                             recurrent_initializer='orthogonal', bias_initializer='zeros',
                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
-        self.model.add(Dense(64, activation='relu'))
-        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(256, activation='relu'))
+        self.model.add(Dropout(self.rate_dropout))
+        self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
+        self.model.add(Dense(256, activation='relu'))
+        self.model.add(Dropout(self.rate_dropout))
+        self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
         self.model.add(Dense(output_size, activation='softmax'))
         opt = RMSprop(lr=self.learning_rate)
         self.model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -167,19 +175,24 @@ class SeqModel:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=50, batch_size=64, verbose=1, shuffle=True,
+        history = self.model.fit(train_x, train_y, epochs=3000, batch_size=64, verbose=1, shuffle=True,
                                  validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
         plt.legend()
         plt.show()
 
-    def save(self, path=model_path, type='evaluate'):
+    def save(self, path=model_path, type='evaluate', name=None):
+        if name:
+            self.model.save(path + name)
+            return
         if type == 'evaluate':
             file = 'lstm_evaluate_' + timestamp + '.h5'
         else:
             file = 'lstm_' + timestamp + '.h5'
         self.model.save(path + file)
+        return
+
 
     def load(self,  path=model_path, type='evaluate', version='lastest'):
         file_names = os.listdir(path)
@@ -199,6 +212,13 @@ class SeqModel:
                 model_name = model_files[0]
             print(model_name, 'has loaded')
             self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
+        elif version == 'softmax':
+            for file in file_names:
+                if re.search('softmax', file) is not None:
+                    model_files.append(file)
+            model_files.sort(reverse=True)
+            model_name = model_files[0]
+            self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
         else:
             self.model = load_model(path+version, custom_objects={'risk_estimation': risk_estimation})
 
@@ -216,59 +236,61 @@ net = model.lstmModel()
 
 timestamp = str(int(time.time()))
 # model.load(type=train_type, version='lstm.h5')
-# model.load(type=train_type)
+# model.load(type=train_type,version='softmax')
+
 # 训练模型
 model.train()
 # 储存模型
-# model.save(type=train_type)
+model.save(name='lstm_softmax_test.h5')
 # 读入模型
-# model.load(type=train_type)
+model.load(type=train_type, version='softmax')
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
 print(predict)
 
-# 评价函数
-eval(predict, df)
-
-# 画图使用
-history = data_test_y[-predict_time_interval - empty_time:-predict_time_interval, :].reshape(-1, output_size)
-val = data_test_y[-predict_time_interval:, :].reshape(-1, output_size)
-eval_seq = np.vstack((history, val))
-
-history_pad = 0.5 * np.ones((history.shape[0], history.shape[1]))
-prev_seq = np.vstack((history_pad, predict))
-
-# 计算时间轴
+predict_df = pd.DataFrame(predict)
+predict_df.columns = list(df.columns[1:].values.astype(str))
 dim_date = x_date[-predict_time_interval - empty_time:]
-xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
-print("xs:", len(xs))
-xs1 = [(datetime.strptime(d, '%Y-%m-%d')).date() for d in dim_date]
 
+predict_df['date'] = dim_date
+predict_df.set_index('date', drop=True, inplace=True)
 
-# 绘图
-rcParams.update({'font.size': 16, 'font.family': 'serif'})
-fig_num = 7
-num = int(output_size/fig_num)
-for i in range(fig_num):
-    fig = plt.figure(figsize=(20, 40))
-    output_name_list = []
-    for im_num in range(i*num, (i+1)*num):
-        index = im_num
-        ax1 = fig.add_subplot(num, 1, im_num - i*num + 1)
-        ax1.set_ylabel(data.columns[index])
-        output_name_list.append(data.columns[index])
-        l1 = ax1.plot(xs, eval_seq[:, index], color='red')[0]
+array = predict_df.copy(deep=True).values
+# print(test_y.shape)
+# print(predict_df.idxmax(axis=1))
 
-        ax2 = ax1.twinx()
-        l2 = ax2.plot(xs1, prev_seq[:, index], color='green')[0]
-        ax2.set_ylabel('predict')
-        fig.legend([l1, l2], ['price predict', 'buy predict'], loc = 'upper right')
-        plt.gcf().autofmt_xdate()
-    output_name = '_'.join(output_name_list)
-    plt.savefig(output_path + '{}.png'.format(output_name))
-    plt.show()
+# 计算收益时修正0收益
+test_y[:, -1] = 0
+for i_time in range(3):
+    index_name = 'max_' + str(i_time) + '_index'
+    index_num = 'max_' + str(i_time) + '_num'
+    index_price = 'max_' + str(i_time) + '_price'
+    max_index = np.argmax(array, axis=1)
+    val = []
+    for index_i in range(test_y.shape[0]):
+        try:
+            val.append(test_y[index_i+1, max_index[index_i]] + 1)
+        except Exception as err:
+            print(err)
+            val.append(test_y[index_i, max_index[index_i]] + 1)
 
+    predict_df[index_price] = val
+    predict_df[index_num] = max_index
+    predict_df[index_name] = predict_df.columns[max_index]
+    array[:, np.argmax(array, axis=1)] = 0
 
+df_price_buy = predict_df.loc[:, ['max_' + str(i_time) + '_price' for i_time in range(10)]]
+df_price_buy['mean'] = df_price_buy.mean(axis=1)
+print(df_price_buy)
+
+profit = 1
+for i in df_price_buy.index:
+    profit *= df_price_buy.loc[i, 'mean']
+
+df_ticket_buy = predict_df.loc[:, ['max_' + str(i_time) + '_index' for i_time in range(10)]]
+print(df_ticket_buy)
+df_ticket_buy.to_csv(output_path + today + '_ticket.csv')
+print('profit:', profit)
 
 

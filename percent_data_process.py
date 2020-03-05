@@ -88,8 +88,12 @@ union_df = history_df.rename(columns={'close': 'trade'})
 # get today items stock data
 today_data_path = output_path + 'today' + '.csv'
 
-if not ts.is_holiday(today):
-    today_df = ts.get_today_all()
+if ts.is_holiday(today):
+    if os.path.isfile(output_path + today + '.csv'):
+        today_df = pd.read_csv(output_path + today + '.csv')
+    else:
+        today_df = ts.get_today_all()
+        today_df.to_csv(output_path + today + '.csv')
     today_df['code'] = today_df['code'].astype(str)
     today_df['date'] = today
     today_df.to_csv(today_data_path, index=False)
@@ -100,17 +104,28 @@ if not ts.is_holiday(today):
     union_df = pd.concat([union_df, today_df], sort=False)
     union_df = union_df.drop_duplicates()
 
+union_df.sort_values(by=['code', 'date'], ascending=True, inplace=True)
+union_df.reset_index(drop=True, inplace=True)
 union_df['index'] = union_df.index
 union_yestoday_df = union_df.copy(deep=True)
 union_yestoday_df['index'] = union_yestoday_df['index'] - 1
-union_df = union_df.merge(union_yestoday_df, on=['code', 'index'])
-union_df['percent'] = (union_df['trade_y'] - union_df['trade_x']) / union_df['trade_x']
+union_yestoday_df.columns = ['date_yestoday', 'trade_yestoday', 'code', 'index']
+print('1:', union_yestoday_df.tail())
+print('2:', union_df.tail())
+union_df = union_yestoday_df.merge(union_df, on=['code', 'index'])
 
-union_df = union_df.loc[:, ['date_y', 'code', 'trade_y', 'percent']]
-union_df.columns = ['date', 'code', 'trade', 'percent']
+
+union_df['percent'] = (union_df['trade_yestoday'] - union_df['trade']) / union_df['trade']
+print('3:', union_df.tail())
+
+union_df = union_df.loc[:, ['date_yestoday', 'code', 'percent']]
+union_df.columns = ['date', 'code', 'percent']
+
+
 union_df['code'] = union_df['code'].astype(str)
-union_df = union_df.merge(tickets_df, on='code')
-result_df = union_df.groupby(['block', 'date'])['percent'].mean().reset_index()
-result_df = pd.pivot(result_df, index="date", columns="block", values="percent").reset_index()
+print(union_df.tail())
+# union_df.set_index(union_df['date'], drop=True, inplace=True)
+result_df = union_df.groupby(['code', 'date'])['percent'].mean().reset_index()
+result_df = pd.pivot(union_df, index="date", columns="code", values="percent").reset_index()
 result_df = result_df.sort_values('date', ascending=True)
 result_df.to_csv(output_path + 'percent_result' + '.csv', index=False, na_rep=0)

@@ -92,7 +92,11 @@ union_df = history_df.rename(columns={'close': 'trade'})
 today_data_path = output_path + 'today' + '.csv'
 
 if not ts.is_holiday(today):
-    today_df = ts.get_today_all()
+    if os.path.isfile(output_path + today + '.csv'):
+        today_df = pd.read_csv(output_path + today + '.csv')
+    else:
+        today_df = ts.get_today_all()
+        today_df.to_csv(output_path + today + '.csv')
     today_df['code'] = today_df['code'].astype(str)
     today_df['date'] = today
     today_df.to_csv(today_data_path, index=False)
@@ -110,6 +114,7 @@ union_df = union_df.merge(union_df_agg, on='code')
 union_df['trade'] = (union_df['trade'] - union_df['min']) / (union_df['max'] - union_df['min'])
 union_df['code'] = union_df['code'].astype(str)
 union_df = union_df.merge(tickets_df, on='code')
+
 
 result_df = union_df.groupby(['block', 'date'])['trade'].mean().reset_index()
 

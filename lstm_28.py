@@ -54,7 +54,7 @@ profit_type = 'weight'
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
 # train_type = 'all'
-train_type = 'evaluate'
+train_type = 'all'
 
 
 data_x, data_y = [], []  # 训练集
@@ -242,12 +242,13 @@ model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
 timestamp = str(int(time.time()))
-# model.load(type=train_type, version='lstm.h5')
+# model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
+model.load(type=train_type, version='lstm.h5') # fixed_models
 # model.load(type=train_type)
 # 训练模型
-model.train()
+# model.train()
 # 储存模型
-model.save(type=train_type)
+# model.save(type=train_type)
 # 读入模型
 # model.load(type=train_type)
 # 预测
