@@ -88,7 +88,7 @@ union_df = history_df.rename(columns={'close': 'trade'})
 # get today items stock data
 today_data_path = output_path + 'today' + '.csv'
 
-if ts.is_holiday(today):
+if not ts.is_holiday(today):
     if os.path.isfile(output_path + today + '.csv'):
         today_df = pd.read_csv(output_path + today + '.csv')
     else:
