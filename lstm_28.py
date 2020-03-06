@@ -51,10 +51,10 @@ empty_time = 0  # 预测时间绘图前补充的长度
 # profit_type='value'  表示使用增值数值
 profit_type = 'weight'
 # train_type 表示训练的模式
-# train_type='evaluate' 使用训练值训练
+# train_type = 'evaluate'  # 使用训练值训练
 # train_type='all' 使用全部值训练
-# train_type = 'all'
 train_type = 'all'
+
 
 
 data_x, data_y = [], []  # 训练集
@@ -242,9 +242,9 @@ model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
 timestamp = str(int(time.time()))
-model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
+# model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
 # model.load(type=train_type, version='lstm.h5') # fixed_models
-# model.load(type=train_type)
+model.load(type=train_type)
 # 训练模型
 # model.train()
 # 储存模型
@@ -254,6 +254,15 @@ model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
+
+predict_df = pd.DataFrame(predict)
+predict_df.columns = list(df.columns[1:].values.astype(str))
+dim_date = x_date[-predict_time_interval - empty_time:]
+
+predict_df['date'] = dim_date
+predict_df.set_index('date', drop=True, inplace=True)
+print(predict_df)
+
 
 # 评价函数
 eval(predict, df)

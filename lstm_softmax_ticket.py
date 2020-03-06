@@ -195,34 +195,35 @@ class SeqModel:
 
 
     def load(self,  path=model_path, type='evaluate', version='lastest',model_name=None):
-        if model_name:
-            self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
-        file_names = os.listdir(path)
-        model_files = []
-        eval_files = []
-        if version == 'lastest':
-            for file in file_names:
-                if re.search('eval', file) is not None:
-                    eval_files.append(file)
-                else:
-                    model_files.append(file)
-            if type == 'evaluate':
-                eval_files.sort(reverse=True)
-                model_name = eval_files[0]
-            else:
-                model_files.sort(reverse=True)
-                model_name = model_files[0]
-            print(model_name, 'has loaded')
-            self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
-        elif version == 'softmax':
-            for file in file_names:
-                if re.search('softmax', file) is not None:
-                    model_files.append(file)
-            model_files.sort(reverse=True)
-            model_name = model_files[0]
+        if not model_name:
             self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
         else:
-            self.model = load_model(path+version, custom_objects={'risk_estimation': risk_estimation})
+            file_names = os.listdir(path)
+            model_files = []
+            eval_files = []
+            if version == 'lastest':
+                for file in file_names:
+                    if re.search('eval', file) is not None:
+                        eval_files.append(file)
+                    else:
+                        model_files.append(file)
+                if type == 'evaluate':
+                    eval_files.sort(reverse=True)
+                    model_name = eval_files[0]
+                else:
+                    model_files.sort(reverse=True)
+                    model_name = model_files[0]
+                print(model_name, 'has loaded')
+                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
+            elif version == 'softmax':
+                for file in file_names:
+                    if re.search('softmax', file) is not None:
+                        model_files.append(file)
+                model_files.sort(reverse=True)
+                model_name = model_files[0]
+                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
+            else:
+                self.model = load_model(path + version, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
         predict = []
