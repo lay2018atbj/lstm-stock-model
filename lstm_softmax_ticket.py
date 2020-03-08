@@ -106,7 +106,7 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 # 使用happynoom描述的网络模型
 # 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
-    return tf.reduce_sum(y_true * tf.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
+    return -tf.reduce_sum(y_true * tf.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
 
 class ReLU(Layer):
     """Rectified Linear Unit."""
@@ -127,7 +127,7 @@ class ReLU(Layer):
 
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.01, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.008, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
