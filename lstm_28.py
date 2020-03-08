@@ -44,16 +44,16 @@ rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
 time_window = 3  # 计算loss时使用未来均值的时间窗口
-predict_time_interval = 30  # 预测的时间长度
+predict_time_interval = 5  # 预测的时间长度
 empty_time = 0  # 预测时间绘图前补充的长度
 # 评价收益方式
 # profit_type = 'weight'  表示使用增值比例
 # profit_type='value'  表示使用增值数值
 profit_type = 'weight'
 # train_type 表示训练的模式
-# train_type = 'evaluate'  # 使用训练值训练
+train_type = 'evaluate'  # 使用训练值训练
 # train_type='all' 使用全部值训练
-train_type = 'all'
+# train_type = 'all'
 
 
 
@@ -107,7 +107,6 @@ def risk_estimation(y_true, y_pred):
     return -100. * K.mean(y_true * y_pred)
 
 
-
 class ReLU(Layer):
     """Rectified Linear Unit."""
 
@@ -127,7 +126,7 @@ class ReLU(Layer):
 
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.004, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -194,7 +193,7 @@ class SeqModel:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=64, verbose=1, shuffle=True,
+        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True,
                                  validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
@@ -244,7 +243,7 @@ net = model.lstmModel()
 timestamp = str(int(time.time()))
 # model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
 # model.load(type=train_type, version='lstm.h5') # fixed_models
-model.load(type=train_type)
+model.load(type=train_type, version='lstm_1583488295.h5')
 # 训练模型
 # model.train()
 # 储存模型

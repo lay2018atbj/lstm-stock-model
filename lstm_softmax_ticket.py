@@ -1,5 +1,6 @@
 # coding:utf-8
 import pandas as pd
+import tensorflow as tf
 from pandas import Series
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,11 +45,11 @@ normalize_data = data.values
 
 # 生成训练集
 # 设置常量
-time_step = 100  # 时间步
+time_step = 60  # 时间步
 rnn_unit = 256  # hidden layer units
 input_size = feature_size  # 输入层维度
 output_size = feature_size  # 输出层维度
-time_window = 3  # 计算loss时使用未来均值的时间窗口
+time_window = 1  # 计算loss时使用未来均值的时间窗口
 predict_time_interval = 30  # 预测的时间长度
 empty_time = 0  # 预测时间绘图前补充的长度
 # 评价收益方式
@@ -58,8 +59,8 @@ profit_type = 'weight'
 # train_type 表示训练的模式
 # train_type='evaluate' 使用训练值训练
 # train_type='all' 使用全部值训练
-train_type = 'all'
-# train_type = 'evaluate'
+# train_type = 'all'
+train_type = 'evaluate'
 
 
 data_x, data_y = [], []  # 训练集
@@ -105,7 +106,7 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 # 使用happynoom描述的网络模型
 # 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
-    return -100. * K.sum(y_true * y_pred)
+    return tf.reduce_sum(y_true * tf.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
 
 class ReLU(Layer):
     """Rectified Linear Unit."""
@@ -126,7 +127,7 @@ class ReLU(Layer):
 
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.005, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.01, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -157,7 +158,7 @@ class SeqModel:
         self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
         self.model.add(Dense(output_size, activation='softmax'))
         opt = RMSprop(lr=self.learning_rate)
-        self.model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
         self.model.summary()
         return self.model
 
@@ -173,9 +174,36 @@ class SeqModel:
         output_attention_mul = Multiply()([inputs, a_probs])
         return output_attention_mul
 
+    def lstmAttentionModel(self):
+        K.clear_session()  # 清除之前的模型，省得压满内存
+        inputs = Input(shape=(time_step, input_size,))
+        attention_mul = self.attention_3d_block(inputs)
+        for i in range(0, self.n_layers - 1):
+            attention_mul = LSTM(self.n_hidden * 4, return_sequences=True, activation='softsign',
+                                 recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
+                                 recurrent_initializer='orthogonal', bias_initializer='zeros',
+                                 dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout)(attention_mul)
+        attention_mul = LSTM(self.n_hidden, return_sequences=False, activation='softsign',
+                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
+                             recurrent_initializer='orthogonal', bias_initializer='zeros',
+                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout)(attention_mul)
+        attention_mul = Dense(256, kernel_initializer=initializers.glorot_uniform(), activation='relu')(attention_mul)
+        attention_mul = Dropout(self.rate_dropout)(attention_mul)
+        attention_mul = BatchNormalization(axis=-1, beta_initializer='ones')(attention_mul)
+        attention_mul = Dense(256, kernel_initializer=initializers.glorot_uniform(), activation='relu')(attention_mul)
+        attention_mul = Dropout(self.rate_dropout)(attention_mul)
+        attention_mul = BatchNormalization(axis=-1, beta_initializer='ones')(attention_mul)
+        outputs = Dense(output_size, activation='softmax')(attention_mul)
+        self.model = Model(input=[inputs], output=outputs)
+        opt = RMSprop(lr=self.learning_rate)
+        self.model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        self.model.summary()
+        return self.model
+
+
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True,
+        history = self.model.fit(train_x, train_y, epochs=600, batch_size=64, verbose=1, shuffle=True,
                                  validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
@@ -242,11 +270,11 @@ timestamp = str(int(time.time()))
 # model.load(type=train_type,version='softmax')
 
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save(name='lstm_softmax_beta.h5')
+model.save(name='lstm_softmax_beta.h5')
 # 读入模型
-model.load(type=train_type, model_name='lstm_softmax_beta.h5')
+# model.load(type=train_type, model_name='lstm_softmax_beta.h5')
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
@@ -270,6 +298,7 @@ for i_time in range(3):
     index_num = 'max_' + str(i_time) + '_num'
     index_price = 'max_' + str(i_time) + '_price'
     max_index = np.argmax(array, axis=1)
+    print(predict_df.columns[max_index], ':', np.amax(array, axis=1))
     val = []
     for index_i in range(test_y.shape[0]):
         try:
