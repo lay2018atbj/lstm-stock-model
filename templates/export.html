@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Stocks</title>
+    <script src="http://oog4yfyu0.bkt.clouddn.com/echarts.min.js"></script>
+    <script src="http://oog4yfyu0.bkt.clouddn.com/echarts-gl.js"></script>
+    <script type="text/javascript " src="http://echarts.baidu.com/gallery/vendors/echarts/map/js/china.js"></script>
+    <script type="text/javascript " src="http://echarts.baidu.com/gallery/vendors/echarts/map/js/world.js"></script>
+    <script type="text/javascript " src="http://oog4yfyu0.bkt.clouddn.com/wordcloud.js"></script>
+</head>
+
+<body>
+<!--    <form method="post" action="{{ url_for('stock') }}" >-->
+<!--        <select name="tickets_name">-->
+<!--            {% for tickets in tickets_list %}-->
+<!--            <option value= "{{tickets}}" SELECTED>{{tickets}}</option>"-->
+<!--            {% endfor %}-->
+<!--        </select>-->
+<!--    </form>-->
+
+    <div align="center">
+        {% for tickets in tickets_list %}
+        <img id="myImage1" src="static/export/{{tickets}}.png" height="2000" width="1400"/>
+        {% endfor %}
+    <br />
+    <br />
+    </div>
+
+
+</body>
+</html>
