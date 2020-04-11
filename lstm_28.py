@@ -16,7 +16,7 @@ import keras.backend as K
 from keras import initializers
 from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import get_custom_objects
-from config import tickets,output_path, use_today, today, model_path
+from config import tickets,output_path, use_today, today, model_path,output_path_flask
 from evaluate import eval
 from pandas.plotting import register_matplotlib_converters
 from keras.layers import Dense, Lambda, dot, Activation, concatenate
@@ -302,6 +302,7 @@ for i in range(fig_num):
         plt.gcf().autofmt_xdate()
     output_name = '_'.join(output_name_list)
     plt.savefig(output_path + '{}.png'.format(output_name))
+    plt.savefig(output_path_flask + '{}.png'.format(output_name))
     plt.show()
 
 
