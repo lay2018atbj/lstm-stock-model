@@ -16,19 +16,20 @@ import keras.backend as K
 from keras import initializers
 from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import get_custom_objects
-from config import tickets,output_path, use_today, today, model_path
+from config import tickets, output_path, use_today, today, model_path
 from evaluate import eval
 from pandas.plotting import register_matplotlib_converters
 from keras.layers import Dense, Lambda, dot, Activation, concatenate
 from keras.layers import Multiply
 import os
 import re
+
 register_matplotlib_converters()
 
 # 导入数据
-
-df = pd.read_csv((output_path + 'result' + '.csv'))  # 读入股票数据
+df = pd.read_csv((output_path + 'presult' + '.csv'))  # 读入股票数据
 df = df.fillna(0)
+df = df[df['date'] >= '2014-01-01']
 
 data = df.loc[:, list(tickets.keys())]
 x_date = df.loc[:, 'date'].values
@@ -44,18 +45,16 @@ rnn_unit = 128  # hidden layer units
 input_size = 28  # 输入层维度
 output_size = 28  # 输出层维度
 time_window = 3  # 计算loss时使用未来均值的时间窗口
-predict_time_interval = 5  # 预测的时间长度
+predict_time_interval = 30  # 预测的时间长度
 empty_time = 0  # 预测时间绘图前补充的长度
 # 评价收益方式
 # profit_type = 'weight'  表示使用增值比例
-# profit_type='value'  表示使用增值数值
-profit_type = 'weight'
+profit_type = 'value'  # 表示使用增值数值
+# profit_type = 'weight'
 # train_type 表示训练的模式
 train_type = 'evaluate'  # 使用训练值训练
 # train_type='all' 使用全部值训练
 # train_type = 'all'
-
-
 
 data_x, data_y = [], []  # 训练集
 for i in range(len(normalize_data) - time_step - time_window):
@@ -64,9 +63,9 @@ for i in range(len(normalize_data) - time_step - time_window):
     # 加入0.003的交易税率
     if profit_type == 'weight':
         y = ((0.01 + np.mean(normalize_data[i + time_step:i + time_step + time_window], axis=0)) / (0.01 + np.mean(
-            normalize_data[i + time_step - time_window:i + time_step], axis=0))) - 1.003
+            normalize_data[i + time_step - time_window:i + time_step], axis=0))) - 1.0015
     else:
-        y = np.mean(normalize_data[i + time_step: i + time_step + time_window], axis=0) - np.mean(
+        y = np.sum(normalize_data[i + time_step: i + time_step + time_window], axis=0) - np.sum(
             normalize_data[i + time_step - time_window:i + time_step], axis=0)
 
     data_x.append(x)  # 将数组转化成列表
@@ -104,7 +103,7 @@ print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 # 使用happynoom描述的网络模型
 # 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
-    return -100. * K.mean(y_true * y_pred)
+    return -K.sum(y_true * y_pred)
 
 
 class ReLU(Layer):
@@ -123,6 +122,7 @@ class ReLU(Layer):
         config = {'alpha': self.alpha, 'max_value': self.max_value}
         base_config = super(ReLU, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
 
 class SeqModel:
     # 使用happynoom描述的网络模型
@@ -152,8 +152,8 @@ class SeqModel:
         self.model = Sequential()
         self.model.add(GaussianNoise(stddev=0.01, input_shape=self.input_shape))
         for i in range(0, self.n_layers - 1):
-            self.model.add(LSTM(self.n_hidden * 4, return_sequences=True, activation='softsign',
-                                recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
+            self.model.add(LSTM(self.n_hidden * 4, return_sequences=True, activation='tanh',
+                                recurrent_activation='tanh', kernel_initializer='glorot_uniform',
                                 recurrent_initializer='orthogonal', bias_initializer='zeros',
                                 dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
 
@@ -161,6 +161,7 @@ class SeqModel:
                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
                             recurrent_initializer='orthogonal', bias_initializer='zeros',
                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
+
         self.model.add(Dense(output_size, kernel_initializer=initializers.glorot_uniform()))
         self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
         self.model.add(ReLU(alpha=0.0, max_value=1.0))
@@ -193,7 +194,7 @@ class SeqModel:
 
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=500, batch_size=64, verbose=1, shuffle=True,
+        history = self.model.fit(train_x, train_y, epochs=500, batch_size=2048, verbose=1, shuffle=True,
                                  validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
@@ -207,7 +208,7 @@ class SeqModel:
             file = 'lstm_' + timestamp + '.h5'
         self.model.save(path + file)
 
-    def load(self,  path=model_path, type='evaluate', version='lastest'):
+    def load(self, path=model_path, type='evaluate', version='lastest'):
         file_names = os.listdir(path)
         model_files = []
         eval_files = []
@@ -224,9 +225,9 @@ class SeqModel:
                 model_files.sort(reverse=True)
                 model_name = model_files[0]
             print(model_name, 'has loaded')
-            self.model = load_model(path+model_name, custom_objects={'risk_estimation': risk_estimation})
+            self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
         else:
-            self.model = load_model(path+version, custom_objects={'risk_estimation': risk_estimation})
+            self.model = load_model(path + version, custom_objects={'risk_estimation': risk_estimation})
 
     def predict(self, test):
         predict = []
@@ -236,23 +237,29 @@ class SeqModel:
             predict.append(prev)
         return np.array(predict)
 
+
 get_custom_objects().update({'ReLU': ReLU})
 model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
 timestamp = str(int(time.time()))
 # model.load(type=train_type, version='lstm_1583287513.h5') # fixed_models
-# model.load(type=train_type, version='lstm.h5') # fixed_models
-model.load(type=train_type, version='lstm_1583488295.h5')
+# model.load(type=train_type, version='lstm.h5')  # fixed_models
+# model.load(type=train_type, version='lstm_1583488295.h5')
+# model.load(type=train_type)
 # 训练模型
-# model.train()
+model.train()
 # 储存模型
-# model.save(type=train_type)
+model.save(type=train_type)
 # 读入模型
 # model.load(type=train_type)
 # 预测
+
+
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
+# 评价函数
+eval(predict, df)
 
 predict_df = pd.DataFrame(predict)
 predict_df.columns = list(df.columns[1:].values.astype(str))
@@ -262,9 +269,26 @@ predict_df['date'] = dim_date
 predict_df.set_index('date', drop=True, inplace=True)
 print(predict_df)
 
+# 涨5个点线
+test_1 = np.copy(test_x)
+test_1[-1][-1, :] = test_1[-1][-1, :] + 0.02
 
-# 评价函数
-eval(predict, df)
+predict_1 = model.predict(test_1)
+predict_1 = predict_1.reshape(-1, output_size)
+predict_df_1 = pd.DataFrame(predict_1)
+predict_df_1.columns = list(df.columns[1:].values.astype(str))
+predict_df_1['date'] = dim_date
+predict_df_1.set_index('date', drop=True, inplace=True)
+
+# 跌5个点线
+test_2 = np.copy(test_x)
+test_2[-1][-1, :] = test_2[-1][-1, :] - 0.05
+predict_2 = model.predict(test_2)
+predict_2 = predict_2.reshape(-1, output_size)
+predict_df_2 = pd.DataFrame(predict_2)
+predict_df_2.columns = list(df.columns[1:].values.astype(str))
+predict_df_2['date'] = dim_date
+predict_df_2.set_index('date', drop=True, inplace=True)
 
 # 画图使用
 history = data_test_y[-predict_time_interval - empty_time:-predict_time_interval, :].reshape(-1, output_size)
@@ -273,6 +297,8 @@ eval_seq = np.vstack((history, val))
 
 history_pad = 0.5 * np.ones((history.shape[0], history.shape[1]))
 prev_seq = np.vstack((history_pad, predict))
+prev_seq_1 = np.vstack((history_pad, predict_1))
+prev_seq_2 = np.vstack((history_pad, predict_2))
 
 # 计算时间轴
 dim_date = x_date[-predict_time_interval - empty_time:]
@@ -280,30 +306,27 @@ xs = [datetime.strptime(d, '%Y-%m-%d').date() for d in dim_date]
 print("xs:", len(xs))
 xs1 = [(datetime.strptime(d, '%Y-%m-%d')).date() for d in dim_date]
 
-
 # 绘图
 rcParams.update({'font.size': 16, 'font.family': 'serif'})
 fig_num = 7
-num = int(output_size/fig_num)
+num = int(output_size / fig_num)
 for i in range(fig_num):
     fig = plt.figure(figsize=(20, 40))
     output_name_list = []
-    for im_num in range(i*num, (i+1)*num):
+    for im_num in range(i * num, (i + 1) * num):
         index = im_num
-        ax1 = fig.add_subplot(num, 1, im_num - i*num + 1)
+        ax1 = fig.add_subplot(num, 1, im_num - i * num + 1)
         ax1.set_ylabel(data.columns[index])
         output_name_list.append(data.columns[index])
         l1 = ax1.plot(xs, eval_seq[:, index], color='red')[0]
 
         ax2 = ax1.twinx()
+        l3 = ax2.plot(xs1, prev_seq_1[:, index], color='blue')[0]
+        l4 = ax2.plot(xs1, prev_seq_2[:, index], color='yellow')[0]
         l2 = ax2.plot(xs1, prev_seq[:, index], color='green')[0]
         ax2.set_ylabel('predict')
-        fig.legend([l1, l2], ['price predict', 'buy predict'], loc = 'upper right')
+        fig.legend([l1, l2, l3, l4], ['real price', 'buy predict', '+0.05', '-0.05'], loc='upper right')
         plt.gcf().autofmt_xdate()
     output_name = '_'.join(output_name_list)
     plt.savefig(output_path + '{}.png'.format(output_name))
     plt.show()
-
-
-
-

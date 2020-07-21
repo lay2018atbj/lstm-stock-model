@@ -35,7 +35,7 @@ if not os.path.exists(history_data_path):
                 history_data_list.append(df)
     history_df = pd.concat(history_data_list)
 else:
-    history_df = pd.read_csv(history_data_path,dtype={'code': 'object'}, keep_default_na=True)
+    history_df = pd.read_csv(history_data_path, dtype={'code': 'object'}, keep_default_na=True)
     history_df = history_df[history_df['code'].isin(list(stock_set))]
 
 # incremental update
@@ -121,11 +121,18 @@ print('3:', union_df.tail())
 union_df = union_df.loc[:, ['date_yestoday', 'code', 'percent']]
 union_df.columns = ['date', 'code', 'percent']
 
-
+'''
 union_df['code'] = union_df['code'].astype(str)
 print(union_df.tail())
 # union_df.set_index(union_df['date'], drop=True, inplace=True)
 result_df = union_df.groupby(['code', 'date'])['percent'].mean().reset_index()
-result_df = pd.pivot(union_df, index="date", columns="code", values="percent").reset_index()
+result_df = pd.pivot(result_df, index="date", columns="code", values="percent").reset_index()
+result_df = result_df.sort_values('date', ascending=True)
+result_df.to_csv(output_path + 'percent_result' + '.csv', index=False, na_rep=0)
+'''
+
+union_df = union_df.merge(tickets_df, on='code')
+result_df = union_df.groupby(['block', 'date'])['percent'].mean().reset_index()
+result_df = pd.pivot(result_df, index="date", columns="block", values="percent").reset_index()
 result_df = result_df.sort_values('date', ascending=True)
 result_df.to_csv(output_path + 'percent_result' + '.csv', index=False, na_rep=0)

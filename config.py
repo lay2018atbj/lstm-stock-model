@@ -1,5 +1,7 @@
 # coding:utf-8
 import datetime
+import read_industires as ris
+
 
 # 农林牧渔
 # 002299 圣农发展 002458 益生股份 002234 民和股份 002746 仙坛股份 600598 北大荒
@@ -86,8 +88,11 @@ communication = ['002194', '300628', '300603', '002115', '600522']
 bank = ['601229', '600000', '600919', '601166', '601988']
 finance = ['600643', '603300', '600901', '600390', '000563']
 automobile = ['601965', '002328', '600933', '601311', '000338']
-mechanics = ['002698', '002975', '002972', '603666', '300417']
+mechanics = ['002698', '000157', '002972', '603666', '300417']
 
+# 全部股票
+# tickets = ris.tickets
+# 列表股票
 tickets = {'agriculture': agriculture, 'excavation': excavation, 'chemical': chemical, 'steel': steel,
            'metals': metals, 'electronic': electronic, 'electrical': electrical, 'food': food, 'cloths': cloths,
            'lightIndustry': lightIndustry, 'medical': medical, 'public': public, 'transport': transport, 'house': house,

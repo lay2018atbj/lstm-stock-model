@@ -11,28 +11,29 @@ from keras.layers import Dense, LSTM, Activation, BatchNormalization, Dropout, L
 from keras.layers.core import *
 from keras.layers.recurrent import LSTM
 from keras.models import *
-from datetime import datetime, timedelta
+import datetime
 from keras.engine import Layer
 import time
 import keras.backend as K
 from keras import initializers
 from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import get_custom_objects
-from config import tickets,output_path, use_today, today, model_path
+from config import tickets, output_path, use_today, today, model_path
 from evaluate import eval
 from pandas.plotting import register_matplotlib_converters
 from keras.layers import Dense, Lambda, dot, Activation, concatenate
 from keras.layers import Multiply
 import os
 import re
+
 register_matplotlib_converters()
 
 # 导入数据
-df = pd.read_csv((output_path + 'percent_result' + '.csv'))  # 读入股票数据
+df = pd.read_csv((output_path + 'presult' + '.csv'))  # 读入股票数据
 df = df.fillna(0)
-# 0 收益按照手续费0.01估计
-df['zeros'] = 0.01
-
+# 0 收益按照手续费0.003估
+df['zeros'] = 0.3
+df = df[df['date'] >= '2014-01-01']
 x_date = df.loc[:, 'date'].values
 columns_length = len(df.columns)
 print(columns_length)
@@ -45,22 +46,22 @@ normalize_data = data.values
 
 # 生成训练集
 # 设置常量
-time_step = 60  # 时间步
-rnn_unit = 256  # hidden layer units
+time_step = 10  # 时间步
+rnn_unit = 128  # hidden layer units
 input_size = feature_size  # 输入层维度
 output_size = feature_size  # 输出层维度
-time_window = 1  # 计算loss时使用未来均值的时间窗口
-predict_time_interval = 30  # 预测的时间长度
+time_window = 3  # 计算loss时使用未来均值的时间窗口
+predict_time_interval = 20  # 预测的时间长度
 empty_time = 0  # 预测时间绘图前补充的长度
 # 评价收益方式
 # profit_type = 'weight'  表示使用增值比例
 # profit_type='value'  表示使用增值数值
 profit_type = 'weight'
 # train_type 表示训练的模式
-# train_type='evaluate' 使用训练值训练
-# train_type='all' 使用全部值训练
-# train_type = 'all'
-train_type = 'evaluate'
+# train_type = 'evaluate'
+train_type = 'all'  # 使用全部值训练
+# train_type = 'evaluate'
+# train_type = 'evaluate'
 
 
 data_x, data_y = [], []  # 训练集
@@ -68,10 +69,10 @@ for i in range(len(normalize_data) - time_step - time_window):
     x = normalize_data[i:i + time_step]
     # 使用均值差作为预测标准
     # 加入0.003的交易税率
-    y = 1
+    y = 0
     for times in range(time_window):
-        y *= (1 + normalize_data[i + time_step + times])
-    y -= 1
+        y += normalize_data[i + time_step + times]
+
     data_x.append(x)  # 将数组转化成列表
     data_y.append(y)
 
@@ -103,10 +104,16 @@ test_y = data_test_y[-predict_time_interval:]
 
 print(train_x.shape, train_y.shape, test_x.shape, test_y.shape)
 
+
 # 使用happynoom描述的网络模型
 # 评价函数，使用y值*仓位表示
 def risk_estimation(y_true, y_pred):
-    return -tf.reduce_sum(y_true * tf.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
+    return 100 * tf.reduce_sum(y_true * tf.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
+
+
+def risk_estimation_sum(y_true, y_pred):
+    return -tf.reduce_mean(tf.reduce_sum(y_true * y_pred, axis=1))
+
 
 class ReLU(Layer):
     """Rectified Linear Unit."""
@@ -125,9 +132,10 @@ class ReLU(Layer):
         base_config = super(ReLU, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
 class SeqModel:
     # 使用happynoom描述的网络模型
-    def __init__(self, input_shape=None, learning_rate=0.008, n_layers=2, n_hidden=8, rate_dropout=0.2,
+    def __init__(self, input_shape=None, learning_rate=0.001, n_layers=2, n_hidden=8, rate_dropout=0.2,
                  loss=risk_estimation):
         self.input_shape = input_shape
         self.learning_rate = learning_rate
@@ -143,22 +151,26 @@ class SeqModel:
         for i in range(0, self.n_layers - 1):
             self.model.add(LSTM(self.n_hidden * 4, return_sequences=True, activation='softsign',
                                 recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
-                                recurrent_initializer='orthogonal', bias_initializer='zeros',
+                                recurrent_initializer='orthogonal',
+                                bias_initializer=initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None),
                                 dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
 
         self.model.add(LSTM(self.n_hidden, return_sequences=False, activation='softsign',
                             recurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',
-                            recurrent_initializer='orthogonal', bias_initializer='zeros',
+                            recurrent_initializer='orthogonal',
+                            bias_initializer=initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None),
                             dropout=self.rate_dropout, recurrent_dropout=self.rate_dropout))
         self.model.add(Dense(256, activation='relu'))
         self.model.add(Dropout(self.rate_dropout))
-        self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
+        self.model.add(
+            BatchNormalization(axis=-1, beta_initializer=initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None)))
         self.model.add(Dense(256, activation='relu'))
         self.model.add(Dropout(self.rate_dropout))
-        self.model.add(BatchNormalization(axis=-1, beta_initializer='ones'))
+        self.model.add(
+            BatchNormalization(axis=-1, beta_initializer=initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None)))
         self.model.add(Dense(output_size, activation='softmax'))
         opt = RMSprop(lr=self.learning_rate)
-        self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
+        self.model.compile(loss=risk_estimation_sum, optimizer=opt, metrics=['accuracy'])
         self.model.summary()
         return self.model
 
@@ -196,14 +208,13 @@ class SeqModel:
         outputs = Dense(output_size, activation='softmax')(attention_mul)
         self.model = Model(input=[inputs], output=outputs)
         opt = RMSprop(lr=self.learning_rate)
-        self.model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        self.model.compile(loss=risk_estimation, optimizer=opt, metrics=['accuracy'])
         self.model.summary()
         return self.model
 
-
     def train(self):
         # fit network
-        history = self.model.fit(train_x, train_y, epochs=600, batch_size=64, verbose=1, shuffle=True,
+        history = self.model.fit(train_x, train_y, epochs=2000, batch_size=2048, verbose=1, shuffle=True,
                                  validation_data=(test_x, test_y))
         # plot history
         plt.plot(history.history['loss'], label='train')
@@ -221,10 +232,10 @@ class SeqModel:
         self.model.save(path + file)
         return
 
-
-    def load(self,  path=model_path, type='evaluate', version='lastest',model_name=None):
-        if not model_name:
-            self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
+    def load(self, path=model_path, type='evaluate', version='lastest', model_name=None):
+        if model_name:
+            self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation,
+                                                                       'risk_estimation_sum': risk_estimation_sum})
         else:
             file_names = os.listdir(path)
             model_files = []
@@ -242,16 +253,19 @@ class SeqModel:
                     model_files.sort(reverse=True)
                     model_name = model_files[0]
                 print(model_name, 'has loaded')
-                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
+                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation,
+                                                                           'risk_estimation_sum': risk_estimation_sum})
             elif version == 'softmax':
                 for file in file_names:
                     if re.search('softmax', file) is not None:
                         model_files.append(file)
                 model_files.sort(reverse=True)
                 model_name = model_files[0]
-                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation})
+                self.model = load_model(path + model_name, custom_objects={'risk_estimation': risk_estimation,
+                                                                           'risk_estimation_sum': risk_estimation_sum})
             else:
-                self.model = load_model(path + version, custom_objects={'risk_estimation': risk_estimation})
+                self.model = load_model(path + version, custom_objects={'risk_estimation': risk_estimation,
+                                                                        'risk_estimation_sum': risk_estimation_sum})
 
     def predict(self, test):
         predict = []
@@ -261,24 +275,25 @@ class SeqModel:
             predict.append(prev)
         return np.array(predict)
 
+
 get_custom_objects().update({'ReLU': ReLU})
 model = SeqModel(input_shape=(time_step, input_size), loss=risk_estimation)
 net = model.lstmModel()
 
 timestamp = str(int(time.time()))
-# model.load(type=train_type, version='lstm.h5')
-# model.load(type=train_type,version='softmax')
+
+model.load(type=train_type, model_name='lstm_0_softmax_beta.h5')
 
 # 训练模型
-model.train()
+#model.train()
 # 储存模型
-model.save(name='lstm_softmax_beta.h5')
+# model.save(name='lstm_0_softmax_beta.h5')
 # 读入模型
-# model.load(type=train_type, model_name='lstm_softmax_beta.h5')
+# model.load(type=train_type, model_name='lstm_0_softmax_beta.h5')
 # 预测
 predict = model.predict(test_x)
 predict = predict.reshape(-1, output_size)
-print(predict)
+# print(predict)
 
 predict_df = pd.DataFrame(predict)
 predict_df.columns = list(df.columns[1:].values.astype(str))
@@ -293,16 +308,16 @@ array = predict_df.copy(deep=True).values
 
 # 计算收益时修正0收益
 test_y[:, -1] = 0
-for i_time in range(3):
+for i_time in range(10):
     index_name = 'max_' + str(i_time) + '_index'
     index_num = 'max_' + str(i_time) + '_num'
     index_price = 'max_' + str(i_time) + '_price'
     max_index = np.argmax(array, axis=1)
-    print(predict_df.columns[max_index], ':', np.amax(array, axis=1))
+    # print(predict_df.columns[max_index], ':', np.amax(array, axis=1))
     val = []
     for index_i in range(test_y.shape[0]):
         try:
-            val.append(test_y[index_i+1, max_index[index_i]] + 1)
+            val.append(test_y[index_i + 1, max_index[index_i]] + 1)
         except Exception as err:
             print(err)
             val.append(1)
@@ -314,15 +329,32 @@ for i_time in range(3):
 
 df_price_buy = predict_df.loc[:, ['max_' + str(i_time) + '_price' for i_time in range(10)]]
 df_price_buy['mean'] = df_price_buy.mean(axis=1)
-print(df_price_buy)
+print('PRICE:', df_price_buy)
+
+df_ticket_buy = predict_df.loc[:, ['max_' + str(i_time) + '_index' for i_time in range(1)]]
+df_presult = pd.read_csv((output_path + 'presult' + '.csv'))  # 读入股票数据
+df_presult = df_presult.fillna(0)
+df_presult = df_presult[df_presult['date'] >= '2020-01-01']
+
+df_presult.sort_values(by=['date'], ascending=True, inplace=True)
+df_presult.reset_index(drop=True, inplace=True)
+df_presult['index'] = df_presult.index
+union_yestoday_df = df_presult.copy(deep=True)
+union_yestoday_df['index'] = union_yestoday_df['index']
+union_yestoday_df = union_yestoday_df.merge(df_presult, on=['index'])
+
+
+print(union_yestoday_df.columns)
+union_yestoday_df['date'] = union_yestoday_df['date_y']
+union_df_result = df_ticket_buy.merge(union_yestoday_df, on=['date'])
 
 profit = 1
-for i in df_price_buy.index:
-    profit *= df_price_buy.loc[i, 'mean']
+for index, row in union_df_result.iterrows():
+    if row['max_0_index'] != 'zeros':
+        profit *= ((100.0 + row[row['max_0_index']+'_x']) / 100.0)
+        print(row['date'], row['max_0_index'], row[row['max_0_index']+'_x'])
+    else:
+        profit *= 1
+        print(row['date'], row['max_0_index'], 0.0)
 
-df_ticket_buy = predict_df.loc[:, ['max_' + str(i_time) + '_index' for i_time in range(10)]]
-print(df_ticket_buy)
-df_ticket_buy.to_csv(output_path + today + '_ticket.csv')
-print('profit:', profit)
-
-
+print(profit)
